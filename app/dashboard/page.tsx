@@ -68,7 +68,7 @@ const Dashboard: React.FC = () => (
             </div>
           ))}
         </div>
-        <div className="mt-4">
+        <div className="mt-4 mx-2">
           <button className="bg-green-700 text-white p-3 rounded text-xs w-full mt-2">View More</button>
         </div>
       </div>

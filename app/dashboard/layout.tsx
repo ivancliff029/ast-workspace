@@ -26,7 +26,7 @@ export default function DashboardLayout({
         <Sidebar isSidebarOpen={isSidebarOpen} toggleSidebar={toggleSidebar} />
         
         {/* Main Content */}
-        <main className="flex-1 p-4 sm:p-6 overflow-y-auto">
+        <main className="flex-1 p-4 sm:p-6 overflow-y-auto ">
           {children}
         </main>
       </div>

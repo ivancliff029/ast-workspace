@@ -58,7 +58,7 @@ const TaskList: React.FC = () => {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 ">
         {tasks.map(({id, creator, createdAt, title, description, dueDate,reward, complexity}) => (
             <TaskCard id={id} creator={creator}  createdAt={createdAt} title={title} description={description} dueDate={dueDate} reward={reward} complexity={complexity}/>
         ))}

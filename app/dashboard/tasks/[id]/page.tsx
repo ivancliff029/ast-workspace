@@ -39,8 +39,8 @@ export default function TaskDetails() {
 
 
   return (
-    <div className="bg-[#131619] text-white min-h-screen flex">
-      <main className="flex-1 p-8">
+    <div className="background foreground min-h-screen flex items-center justify-center">
+      <main className="flex-1 p-8 items-center">
       <div className="flex justify-between items-center mb-8">
           <div>
             <h1 className="text-2xl font-bold mb-2">Task Details</h1>

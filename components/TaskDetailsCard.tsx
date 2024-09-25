@@ -1,6 +1,6 @@
 import React from 'react'
 import { Button } from './ui/button'
-import { FileText, Github, Link, Link2, Users } from 'lucide-react'
+import { FileText, Github, Link, GitBranch, Users } from 'lucide-react'
 import { Card, CardContent } from './ui/card'
 import { Checkbox } from './ui/checkbox'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
@@ -27,27 +27,15 @@ const TaskDetailsCard = ({id, creator, createdAt, title, description, dueDate,re
           <p className="text-muted-foreground mb-6">{description}</p>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-            <div>
-              <h4 className="text-lg font-semibold mb-2">Requirements</h4>
-              <ul className="space-y-1">
-                <li className="flex items-center">
-                  <Checkbox id="requirement1" />
-                  <label htmlFor="requirement1" className="ml-2 text-sm">Responsive design that works on all devices</label>
-                </li>
-                <li className="flex items-center">
-                  <Checkbox id="requirement2" />
-                  <label htmlFor="requirement2" className="ml-2 text-sm">Implement OAuth 2.0 and JWT authentication strategy</label>
-                </li>
-                <li className="flex items-center">
-                  <Checkbox id="requirement3" />
-                  <label htmlFor="requirement3" className="ml-2 text-sm">Improve the overall user experience</label>
-                </li>
-                <li className="flex items-center">
-                  <Checkbox id="requirement4" />
-                  <label htmlFor="requirement4" className="ml-2 text-sm">Ensure the website is accessible and SEO-friendly</label>
-                </li>
-              </ul>
-            </div>
+          <div>
+                <h4 className="text-lg font-semibold mb-2">Requirements</h4>
+                <ul className="list-disc list-inside text-gray-300 space-y-1">
+                  <li>Responsive design that works on all devices</li>
+                  <li>Implement OAuth 2.0 and JWT authentication strategy</li>
+                  <li>Improve the overall user experience</li>
+                  <li>Ensure the website is accessible and SEO-friendly</li>
+                </ul>
+              </div>
             <div className="space-y-4">
               <div className="flex justify-between items-center">
                 <span className="text-muted-foreground">Deadline</span>
@@ -128,11 +116,14 @@ const TaskDetailsCard = ({id, creator, createdAt, title, description, dueDate,re
 
           <div className="mb-6">
             <h4 className="text-lg font-semibold mb-2">GitHub Repository</h4>
-            <div className="p-4 rounded-lg flex items-center">
-              <Github className="mr-3" size={24} />
-              <div>
-                <p className="font-semibold">a/workspace</p>
-                <p className="text-sm text-muted-foreground">Branch: feature/user-auth</p>
+            <div className="flex flex-col p-4 rounded-lg items-start">
+              <div className='flex flex-row items-center justify-start mb-2'>
+                <Github className="mr-3" size={24} />
+                <p className="font-semibold">ast/workspace</p>
+              </div>
+              <div className='flex flex-row items-center justify-start my-2'>
+                <GitBranch size={24}/>
+                <p className="text-sm text-gray-400 ml-3"><span className='text-white font-semibold'>Branch:</span> feature/user-auth</p>
               </div>
             </div>
           </div>
