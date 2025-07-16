@@ -31,7 +31,7 @@ const Sidebar =({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boolean, togg
           <Money width={30} height={30}  className="mr-3"/>
           <span>Earnings</span>
         </Link>
-        <Link href="/earnings" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700' : 'text-gray-400 hover:bg-gray-700'}`}>
+        <Link href="/dashboard/issue-tracker" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700' : 'text-gray-400 hover:bg-gray-700'}`}>
           <Code width={30} height={30}  className="mr-3"/>
           <span>Issue Tracker</span>
         </Link>
