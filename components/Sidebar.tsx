@@ -1,7 +1,7 @@
 'use client'
 
 import React from 'react'
-import { LayoutGrid, ClipboardList, Zap, DollarSign, Settings, LogOut, X, Power } from 'lucide-react'
+import { LayoutGrid, ClipboardList, Zap, DollarSign, Settings, LogOut, X, Power, Code } from 'lucide-react'
 import { usePathname } from 'next/navigation'
 import Link from 'next/link'
 import Money from './icons/Money'
@@ -30,6 +30,10 @@ const Sidebar =({ isSidebarOpen, toggleSidebar }: { isSidebarOpen: boolean, togg
         <Link href="/earnings" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700' : 'text-gray-400 hover:bg-gray-700'}`}>
           <Money width={30} height={30}  className="mr-3"/>
           <span>Earnings</span>
+        </Link>
+        <Link href="/earnings" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700' : 'text-gray-400 hover:bg-gray-700'}`}>
+          <Code width={30} height={30}  className="mr-3"/>
+          <span>Issue Tracker</span>
         </Link>
       </nav>
       <div className="mt-56 mb-10 space-y-2">
