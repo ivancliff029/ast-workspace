@@ -17,7 +17,7 @@ const IssueTracker = () => {
             <a href="/dashboard/issue-tracker/create">Create Issue</a>
           </button>
           <button className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
-            Resolve Issue
+            <a href="/dashboard/issue-tracker/resolve">Resolve Issue</a>
           </button>
         </div>
       </div>
