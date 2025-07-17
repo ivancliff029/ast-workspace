@@ -1,6 +1,6 @@
 "use client"
 import React, { useState } from 'react';
-import { ArrowRight, CheckCircle, Briefcase, Clock, DollarSign, Shield, Rocket } from 'lucide-react';
+import { ArrowRight, CheckCircle, Briefcase, Clock, DollarSign, Shield, BrainCircuit } from 'lucide-react';
 
 const LandingPage = () => {
   const [email, setEmail] = useState('');
@@ -20,7 +20,7 @@ const LandingPage = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between h-16">
             <div className="flex items-center">
-              <Rocket className="h-8 w-8 text-indigo-600" />
+              <BrainCircuit className="h-8 w-8 text-indigo-600" />
               <span className="ml-2 text-xl font-bold text-gray-900">All Space Technologies</span>
             </div>
             <div className="flex items-center space-x-4">
@@ -114,7 +114,7 @@ const LandingPage = () => {
                   description: "Enterprise-grade security for all your sensitive work data."
                 },
                 {
-                  icon: Rocket,
+                  icon: BrainCircuit,
                   title: "Technical Focus",
                   description: "Platform optimized for aerospace engineering workflows."
                 }
@@ -178,7 +178,7 @@ const LandingPage = () => {
       <footer className="bg-white">
         <div className="max-w-7xl mx-auto py-12 px-4 overflow-hidden sm:px-6 lg:px-8">
           <div className="flex justify-center">
-            <Rocket className="h-8 w-8 text-indigo-600" />
+            <BrainCircuit className="h-8 w-8 text-indigo-600" />
           </div>
           <p className="mt-4 text-center text-base text-gray-400">
             &copy; {new Date().getFullYear()} All Space Technologies. Internal use only.
