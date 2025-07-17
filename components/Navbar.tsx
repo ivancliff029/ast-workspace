@@ -52,7 +52,7 @@ const Navbar= ({ toggleSidebar }:NavbarProps) => {
       <header className="bg-[#0D0F10] p-4 rounded-2xl flex justify-between items-center mx-4 my-2 ">
         <div className="flex items-center">
           <div className="w-20 h-10 flex items-center justify-center text-white font-bold mr-2">
-            <Image src={logo} width={300} height={32}  alt="logo" className='object-cover' />
+            <a href="/"><Image src={logo} width={300} height={32}  alt="logo" className='object-cover' /></a>
           </div>
           <span className="font-semibold hidden sm:inline">WorkSpace Dashboard</span>
         </div>
