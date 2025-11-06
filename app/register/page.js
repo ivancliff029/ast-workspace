@@ -55,7 +55,7 @@ const RegisterPage = () => {
             last_name: formData.lastName,
             employee_id: formData.employeeId,
           },
-          emailRedirectTo: `${window.location.origin}/dashboard`, // Redirect after email confirmation
+          emailRedirectTo: `${window.location.origin}/login`, // Redirect after email confirmation
         },
       });
 
