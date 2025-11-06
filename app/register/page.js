@@ -1,6 +1,6 @@
 "use client"
 import React, { useState } from 'react';
-import { Rocket, User, Lock, Mail, BadgeCheck, XCircle } from 'lucide-react'; // Added XCircle for error icon
+import { Rocket, User, Lock, Mail, BadgeCheck, XCircle } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { supabase } from '../../lib/supabaseClient';
@@ -37,7 +37,6 @@ const RegisterPage = () => {
       return;
     }
 
-    // Basic password strength validation (optional, Supabase handles some complexity)
     if (formData.password.length < 8 || !/[0-9]/.test(formData.password) || !/[!@#$%^&*]/.test(formData.password)) {
         setError('Password must be at least 8 characters long and contain at least one number and one special character.');
         setIsLoading(false);
@@ -45,44 +44,78 @@ const RegisterPage = () => {
     }
 
     try {
-      // Supabase registration
-      const { data, error: signUpError } = await supabase.auth.signUp({
+      // 1. Register the user with Supabase Auth
+      const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || window.location.origin;
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          data: { // You can add additional user metadata here
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            employee_id: formData.employeeId,
-          },
-          emailRedirectTo: `${window.location.origin}/login`, // Redirect after email confirmation
+          // You could optionally pass first_name, last_name, etc. here as user_metadata
+          // but we'll store them in the 'employees' table for better structure.
+          emailRedirectTo: `${baseUrl}/dashboard`,
         },
       });
 
       if (signUpError) {
         setError(signUpError.message);
+        setIsLoading(false);
         return;
       }
 
-      if (data.user) {
-        // If email confirmation is required, Supabase will send an email.
-        // The user will be null until they confirm their email.
-        if (data.user.identities && data.user.identities.length > 0) { // User immediately signed in (e.g., email confirmation not required or already confirmed)
-          router.push('/login');
-        } else {
-          setError('Please check your email to confirm your account.');
-          // Optionally, redirect to a "check your email" page
-          // router.push('/check-email');
-        }
-      } else {
-        // This case might happen if email confirmation is enabled and the user isn't immediately signed in.
+      // 2. Handle email confirmation logic
+      // Supabase's signUp returns `user` as null if email confirmation is required
+      // and the user hasn't confirmed yet.
+      // We need the user's ID to insert into the 'employees' table.
+      // This is a critical point: If email confirmation is ON, `authData.user` will be NULL here.
+      // You have two main approaches:
+      //   a) Insert into 'employees' table ONLY AFTER email confirmation (recommended for strict data integrity).
+      //   b) Insert immediately, but user won't be able to access until confirmed.
+      //
+      // For simplicity in this example, we will assume `authData.user` is available immediately
+      // or that the user will confirm their email and then the data will be associated.
+      // If `authData.user` is null, the insert will fail.
+
+      if (!authData.user) {
+        // This case indicates that email confirmation is required.
+        // The user object is not immediately available.
         setError('Registration successful! Please check your email to confirm your account.');
-        // Optionally, redirect to a "check your email" page
-        // router.push('/check-email');
+        // You might want to redirect to a "check your email" page here.
+        setIsLoading(false);
+        return;
       }
 
+      // If authData.user is available (e.g., email confirmation is off, or user immediately signed in)
+      const userId = authData.user.id;
+
+      // 3. Insert additional employee data into the 'employees' table
+      const { error: insertError } = await supabase
+        .from('employees')
+        .insert([
+          {
+            id: userId, // Link the employee record to the auth.users ID
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            employee_id: formData.employeeId,
+          },
+        ]);
+
+      if (insertError) {
+        // If there's an error inserting into 'employees', you might want to consider
+        // rolling back the auth.users entry as well, or at least logging it.
+        // For this example, we'll just report the error.
+        setError(`Registration successful, but failed to save employee details: ${insertError.message}`);
+        setIsLoading(false);
+        // Even if employee details failed, the user account is created.
+        // You might still want to redirect or show a success message.
+        router.push('/dashboard'); // Still redirect if auth succeeded
+        return;
+      }
+
+      // Both authentication and profile creation successful
+      router.push('/dashboard');
+
     } catch (err) {
-      console.error('Unexpected registration error:', err);
+      console.error('An unexpected error occurred during registration:', err);
       setError('An unexpected error occurred during registration. Please try again.');
     } finally {
       setIsLoading(false);
@@ -109,7 +142,7 @@ const RegisterPage = () => {
             <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <XCircle className="h-5 w-5 text-red-500" /> {/* Changed icon to XCircle */}
+                  <XCircle className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
