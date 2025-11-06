@@ -1,8 +1,9 @@
 "use client"
 import React, { useState } from 'react';
-import { Rocket, Lock, Mail } from 'lucide-react';
+import { Rocket, Lock, Mail, XCircle } from 'lucide-react'; // Added XCircle for error icon
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabaseClient'; // Import your Supabase client
 
 const LoginPage = () => {
   const [email, setEmail] = useState('');
@@ -17,16 +18,38 @@ const LoginPage = () => {
     setError('');
 
     try {
-      // Replace with actual authentication logic
-      console.log('Logging in with:', { email, password });
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // On successful login
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email,
+        password: password,
+      });
+
+      if (signInError) {
+        // Handle specific Supabase errors
+        if (signInError.message.includes('Email not confirmed')) {
+          setError('Please confirm your email before logging in.');
+        } else if (signInError.message.includes('Invalid login credentials')) {
+          setError('Invalid email or password. Please try again.');
+        } else {
+          setError(`Login failed: ${signInError.message}`);
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // If data.user is null, it might indicate email not confirmed
+      // or other issues where the session isn't immediately created.
+      if (!data.user) {
+        setError('Login failed. Please check your credentials and confirm your email.');
+        setIsLoading(false);
+        return;
+      }
+
+      // On successful login, redirect to dashboard
       router.push('/dashboard');
+
     } catch (err) {
-      setError('Invalid credentials. Please try again.');
+      console.error('An unexpected error occurred during login:', err);
+      setError('An unexpected error occurred. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -52,7 +75,7 @@ const LoginPage = () => {
             <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <Lock className="h-5 w-5 text-red-500" />
+                  <XCircle className="h-5 w-5 text-red-500" /> {/* Changed icon to XCircle */}
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
@@ -146,7 +169,10 @@ const LoginPage = () => {
               </div>
               <div className="relative flex justify-center text-sm">
                 <span className="px-2 bg-white text-gray-500">
-                  New employee? Contact admin for access
+                  New employee?{' '}
+                  <Link href="/register" className="font-medium text-indigo-600 hover:text-indigo-500">
+                    Create an account
+                  </Link>
                 </span>
               </div>
             </div>
