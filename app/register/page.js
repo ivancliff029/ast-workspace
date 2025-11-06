@@ -1,8 +1,9 @@
 "use client"
 import React, { useState } from 'react';
-import { Rocket, User, Lock, Mail, BadgeCheck } from 'lucide-react';
+import { Rocket, User, Lock, Mail, BadgeCheck, XCircle } from 'lucide-react'; // Added XCircle for error icon
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabaseClient';
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -30,24 +31,59 @@ const RegisterPage = () => {
     setIsLoading(true);
     setError('');
 
-    // Basic validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setIsLoading(false);
       return;
     }
 
+    // Basic password strength validation (optional, Supabase handles some complexity)
+    if (formData.password.length < 8 || !/[0-9]/.test(formData.password) || !/[!@#$%^&*]/.test(formData.password)) {
+        setError('Password must be at least 8 characters long and contain at least one number and one special character.');
+        setIsLoading(false);
+        return;
+    }
+
     try {
-      // Replace with actual registration logic
-      console.log('Registering with:', formData);
-      
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // On successful registration
-      router.push('/dashboard');
+      // Supabase registration
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: formData.email,
+        password: formData.password,
+        options: {
+          data: { // You can add additional user metadata here
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            employee_id: formData.employeeId,
+          },
+          emailRedirectTo: `${window.location.origin}/dashboard`, // Redirect after email confirmation
+        },
+      });
+
+      if (signUpError) {
+        setError(signUpError.message);
+        return;
+      }
+
+      if (data.user) {
+        // If email confirmation is required, Supabase will send an email.
+        // The user will be null until they confirm their email.
+        if (data.user.identities && data.user.identities.length > 0) { // User immediately signed in (e.g., email confirmation not required or already confirmed)
+          router.push('/dashboard');
+        } else {
+          setError('Please check your email to confirm your account.');
+          // Optionally, redirect to a "check your email" page
+          // router.push('/check-email');
+        }
+      } else {
+        // This case might happen if email confirmation is enabled and the user isn't immediately signed in.
+        setError('Registration successful! Please check your email to confirm your account.');
+        // Optionally, redirect to a "check your email" page
+        // router.push('/check-email');
+      }
+
     } catch (err) {
-      setError('Registration failed. Please contact your administrator.');
+      console.error('Unexpected registration error:', err);
+      setError('An unexpected error occurred during registration. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -73,7 +109,7 @@ const RegisterPage = () => {
             <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4">
               <div className="flex">
                 <div className="flex-shrink-0">
-                  <Lock className="h-5 w-5 text-red-500" />
+                  <XCircle className="h-5 w-5 text-red-500" /> {/* Changed icon to XCircle */}
                 </div>
                 <div className="ml-3">
                   <p className="text-sm text-red-700">{error}</p>
