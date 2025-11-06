@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { Rocket, User, Lock, Mail, BadgeCheck, XCircle, Briefcase } from 'lucide-react'; // Added Briefcase for role
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../lib/supabaseClient'; // Import your Supabase client
+import { supabase } from '../../lib/supabaseClient'; // Import your Supabase client
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
