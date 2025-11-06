@@ -1,9 +1,9 @@
 "use client"
 import React, { useState } from 'react';
-import { Rocket, User, Lock, Mail, BadgeCheck, XCircle } from 'lucide-react';
+import { Rocket, User, Lock, Mail, BadgeCheck, XCircle, Briefcase } from 'lucide-react'; // Added Briefcase for role
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { supabase } from '../../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient'; // Import your Supabase client
 
 const RegisterPage = () => {
   const [formData, setFormData] = useState({
@@ -11,11 +11,13 @@ const RegisterPage = () => {
     lastName: '',
     email: '',
     employeeId: '',
+    role: '', // New state for role
     password: '',
     confirmPassword: ''
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [registrationSuccess, setRegistrationSuccess] = useState(false); // New state for success message
   const router = useRouter();
 
   const handleChange = (e) => {
@@ -30,29 +32,42 @@ const RegisterPage = () => {
     e.preventDefault();
     setIsLoading(true);
     setError('');
+    setRegistrationSuccess(false); // Reset success message on new submission
 
+    // Basic client-side validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
       setIsLoading(false);
       return;
     }
-
     if (formData.password.length < 8 || !/[0-9]/.test(formData.password) || !/[!@#$%^&*]/.test(formData.password)) {
         setError('Password must be at least 8 characters long and contain at least one number and one special character.');
         setIsLoading(false);
         return;
     }
+    if (!formData.role) {
+        setError('Please select an employee role.');
+        setIsLoading(false);
+        return;
+    }
 
     try {
-      // 1. Register the user with Supabase Auth
       const baseUrl = process.env.NEXT_PUBLIC_APP_BASE_URL || window.location.origin;
+
+      // 1. Register the user with Supabase Auth
+      // Pass the extra data in options.data. This will be stored in raw_user_meta_data
+      // in the auth.users table, which our trigger function will then use.
       const { data: authData, error: signUpError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
         options: {
-          // You could optionally pass first_name, last_name, etc. here as user_metadata
-          // but we'll store them in the 'employees' table for better structure.
-          emailRedirectTo: `${baseUrl}/dashboard`,
+          data: { // This data goes into auth.users.raw_user_meta_data
+            first_name: formData.firstName,
+            last_name: formData.lastName,
+            employee_id: formData.employeeId,
+            role: formData.role, // Pass the new role field
+          },
+          emailRedirectTo: `${baseUrl}/dashboard`, // User redirected here after confirming email
         },
       });
 
@@ -62,57 +77,13 @@ const RegisterPage = () => {
         return;
       }
 
-      // 2. Handle email confirmation logic
-      // Supabase's signUp returns `user` as null if email confirmation is required
-      // and the user hasn't confirmed yet.
-      // We need the user's ID to insert into the 'employees' table.
-      // This is a critical point: If email confirmation is ON, `authData.user` will be NULL here.
-      // You have two main approaches:
-      //   a) Insert into 'employees' table ONLY AFTER email confirmation (recommended for strict data integrity).
-      //   b) Insert immediately, but user won't be able to access until confirmed.
-      //
-      // For simplicity in this example, we will assume `authData.user` is available immediately
-      // or that the user will confirm their email and then the data will be associated.
-      // If `authData.user` is null, the insert will fail.
-
-      if (!authData.user) {
-        // This case indicates that email confirmation is required.
-        // The user object is not immediately available.
-        setError('Registration successful! Please check your email to confirm your account.');
-        // You might want to redirect to a "check your email" page here.
-        setIsLoading(false);
-        return;
-      }
-
-      // If authData.user is available (e.g., email confirmation is off, or user immediately signed in)
-      const userId = authData.user.id;
-
-      // 3. Insert additional employee data into the 'employees' table
-      const { error: insertError } = await supabase
-        .from('employees')
-        .insert([
-          {
-            id: userId, // Link the employee record to the auth.users ID
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            employee_id: formData.employeeId,
-          },
-        ]);
-
-      if (insertError) {
-        // If there's an error inserting into 'employees', you might want to consider
-        // rolling back the auth.users entry as well, or at least logging it.
-        // For this example, we'll just report the error.
-        setError(`Registration successful, but failed to save employee details: ${insertError.message}`);
-        setIsLoading(false);
-        // Even if employee details failed, the user account is created.
-        // You might still want to redirect or show a success message.
-        router.push('/dashboard'); // Still redirect if auth succeeded
-        return;
-      }
-
-      // Both authentication and profile creation successful
-      router.push('/dashboard');
+      // If we reach here, the sign-up request was successful.
+      // Supabase sends a confirmation email. The trigger will create the profile
+      // automatically upon email confirmation.
+      setRegistrationSuccess(true);
+      setError(''); // Clear any previous errors
+      // You could also redirect to a dedicated 'check-email' page here
+      // router.push('/check-email');
 
     } catch (err) {
       console.error('An unexpected error occurred during registration:', err);
@@ -151,8 +122,22 @@ const RegisterPage = () => {
             </div>
           )}
 
+          {registrationSuccess && (
+            <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4">
+              <div className="flex">
+                <div className="flex-shrink-0">
+                  <BadgeCheck className="h-5 w-5 text-green-500" />
+                </div>
+                <div className="ml-3">
+                  <p className="text-sm text-green-700">Registration successful! Please check your email to confirm your account.</p>
+                </div>
+              </div>
+            </div>
+          )}
+
           <form className="space-y-6" onSubmit={handleSubmit}>
             <div className="grid grid-cols-1 gap-y-6 gap-x-4 sm:grid-cols-2">
+              {/* First Name */}
               <div>
                 <label htmlFor="firstName" className="block text-sm font-medium text-gray-700">
                   First Name
@@ -174,6 +159,7 @@ const RegisterPage = () => {
                 </div>
               </div>
 
+              {/* Last Name */}
               <div>
                 <label htmlFor="lastName" className="block text-sm font-medium text-gray-700">
                   Last Name
@@ -196,6 +182,7 @@ const RegisterPage = () => {
               </div>
             </div>
 
+            {/* Company Email */}
             <div>
               <label htmlFor="email" className="block text-sm font-medium text-gray-700">
                 Company Email
@@ -218,6 +205,7 @@ const RegisterPage = () => {
               </div>
             </div>
 
+            {/* Employee ID */}
             <div>
               <label htmlFor="employeeId" className="block text-sm font-medium text-gray-700">
                 Employee ID
@@ -239,6 +227,35 @@ const RegisterPage = () => {
               </div>
             </div>
 
+            {/* Role - New Field */}
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                Employee Role
+              </label>
+              <div className="mt-1 relative rounded-md shadow-sm">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Briefcase className="h-5 w-5 text-gray-400" />
+                </div>
+                <select
+                  id="role"
+                  name="role"
+                  required
+                  value={formData.role}
+                  onChange={handleChange}
+                  className="py-2 pl-10 block w-full border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+                >
+                  <option value="">Select a role</option>
+                  <option value="Engineer">Engineer</option>
+                  <option value="Project Manager">Project Manager</option>
+                  <option value="HR">HR</option>
+                  <option value="Marketing">Marketing</option>
+                  <option value="Administrator">Administrator</option>
+                  {/* Add more roles as needed */}
+                </select>
+              </div>
+            </div>
+
+            {/* Password */}
             <div>
               <label htmlFor="password" className="block text-sm font-medium text-gray-700">
                 Password
@@ -264,6 +281,7 @@ const RegisterPage = () => {
               </p>
             </div>
 
+            {/* Confirm Password */}
             <div>
               <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
                 Confirm Password
