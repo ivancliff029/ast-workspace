@@ -68,7 +68,7 @@ const RegisterPage = () => {
         // If email confirmation is required, Supabase will send an email.
         // The user will be null until they confirm their email.
         if (data.user.identities && data.user.identities.length > 0) { // User immediately signed in (e.g., email confirmation not required or already confirmed)
-          router.push('/dashboard');
+          router.push('/login');
         } else {
           setError('Please check your email to confirm your account.');
           // Optionally, redirect to a "check your email" page
