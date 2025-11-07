@@ -5,8 +5,8 @@ import Image from 'next/image';
 import Money from "../../components/icons/Money"; // Ensure path is correct
 import TaskComplete from "../../components/icons/TaskComplete"; // Ensure path is correct
 import { useAuth } from '@/context/AuthContext';
-import { supabase } from '../../lib/supabaseClient'; // Import Supabase client
 import { useRouter } from 'next/navigation'; // Import useRouter
+import { supabase } from '../../lib/supabaseClient'; // Import your existing Supabase client
 
 const Dashboard = () => {
   const { user } = useAuth(); // User from AuthContext
@@ -16,66 +16,85 @@ const Dashboard = () => {
   const [claimedTasksCount, setClaimedTasksCount] = useState(0);
   const [completedTasksCount, setCompletedTasksCount] = useState(0);
   const [leaderboard, setLeaderboard] = useState([]);
-  const [userRewardPoints, setUserRewardPoints] = useState(0); // For rewards summary
-  const [tasksInProgress, setTasksInProgress] = useState([]); // For Tasks Progress section
-  const [loading, setLoading] = useState(true); // <<< FIXED LINE 21: Added useState(true)
+  const [userRewardPoints, setUserRewardPoints] = useState(0);
+  const [tasksInProgress, setTasksInProgress] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [currentUserProfile, setCurrentUserProfile] = useState(null); // To store current user's full profile
 
-  // Extract name from user email or metadata
-  const userName = user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User';
+  // Use the first_name from the employee profile if available, otherwise fallback
+  const userName = currentUserProfile?.first_name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User';
 
   const fetchDashboardData = useCallback(async () => {
     setLoading(true);
     setError(null);
 
+    if (!user) {
+      setError("User not authenticated.");
+      setLoading(false);
+      return;
+    }
+
     try {
+      // Fetch current user's profile
+      const { data: profileData, error: profileError } = await supabase
+        .from('employees')
+        .select('*')
+        .eq('id', user.id)
+        .single();
+
+      if (profileError) throw profileError;
+      setCurrentUserProfile(profileData);
+
       // 1. Fetch Task Counts
+      // Available tasks (public and 'pending' status in your schema)
       const { count: availableCount, error: availError } = await supabase
         .from('tasks')
         .select('id', { count: 'exact' })
-        .eq('status', 'available')
+        .eq('status', 'pending') // Use 'pending' as per your schema
         .eq('is_public', true);
 
       if (availError) throw availError;
       setAvailableTasksCount(availableCount);
 
+      // Claimed tasks (by current user, 'in_progress' status)
       const { count: claimedCount, error: claimedError } = await supabase
         .from('tasks')
         .select('id', { count: 'exact' })
-        .eq('status', 'claimed')
-        .eq('user_id', user?.id);
+        .eq('status', 'in_progress') // Use 'in_progress' as per your schema
+        .eq('user_id', user.id);
 
       if (claimedError) throw claimedError;
       setClaimedTasksCount(claimedCount);
 
+      // Completed tasks (by current user, 'completed' status)
       const { count: completedCount, error: completedError } = await supabase
         .from('tasks')
         .select('id', { count: 'exact' })
         .eq('status', 'completed')
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (completedError) throw completedError;
       setCompletedTasksCount(completedCount);
 
       // 2. Fetch Leaderboard (Top 5 users by completed tasks)
-      const { data: leaderboardData, error: leaderboardError } = await supabase
+      // Fetch all completed tasks along with employee details for the leaderboard
+      const { data: leaderboardTasksData, error: leaderboardError } = await supabase
         .from('tasks')
         .select(`
           user_id,
-          employee_creator:employees (first_name, last_name)
+          employees (first_name, last_name) // Correctly select from the 'employees' relation
         `)
         .eq('status', 'completed')
-        .not('user_id', 'is', null);
+        .not('user_id', 'is', null); // Only tasks assigned to a user
 
       if (leaderboardError) throw leaderboardError;
 
-      // Group by user_id and count completed tasks
-      const userCompletedCounts = leaderboardData.reduce((acc, task) => {
-        const userId = task.user_id;
-        if (userId) {
-          // Access the aliased relationship here
+      const userCompletedCounts = leaderboardTasksData.reduce((acc, task) => {
+        if (task.user_id && task.employees) {
+          const userId = task.user_id;
           acc[userId] = acc[userId] || {
-            name: task.employee_creator ? `${task.employee_creator.first_name} ${task.employee_creator.last_name}` : 'Unknown',
+            name: `${task.employees.first_name} ${task.employees.last_name}`,
             count: 0,
           };
           acc[userId].count++;
@@ -83,15 +102,14 @@ const Dashboard = () => {
         return acc;
       }, {});
 
-      // Sort and pick top performers
       const sortedLeaderboard = Object.values(userCompletedCounts)
         .sort((a, b) => b.count - a.count)
-        .slice(0, 5) // Top 5
+        .slice(0, 5)
         .map((entry, index) => ({
           name: entry.name,
           completedTasks: entry.count,
           rank: index + 1,
-          time: 'Just now' // Placeholder, real time would need more complex logic
+          time: 'Just now' // Placeholder
         }));
       setLeaderboard(sortedLeaderboard);
 
@@ -100,14 +118,14 @@ const Dashboard = () => {
         .from('tasks')
         .select('reward_points')
         .eq('status', 'completed')
-        .eq('user_id', user?.id);
+        .eq('user_id', user.id);
 
       if (rewardsError) throw rewardsError;
 
       const totalRewardPoints = rewardsData.reduce((sum, task) => sum + (task.reward_points || 0), 0);
       setUserRewardPoints(totalRewardPoints);
 
-      // 4. Fetch Tasks In Progress (for "Tasks Progress" section)
+      // 4. Fetch Tasks In Progress (for "Your Tasks Progress" section)
       const { data: progressTasksData, error: progressTasksError } = await supabase
         .from('tasks')
         .select(`
@@ -118,16 +136,15 @@ const Dashboard = () => {
           deadline,
           status
         `)
-        .eq('user_id', user?.id)
-        .in('status', ['claimed', 'submitted']);
+        .eq('user_id', user.id)
+        .in('status', ['in_progress', 'submitted']); // Fetch both 'in_progress' and 'submitted'
 
       if (progressTasksError) throw progressTasksError;
       setTasksInProgress(progressTasksData.map(task => ({
         ...task,
-        progress: Math.floor(Math.random() * 100),
-        priorityColor: task.priority === 'High' ? 'text-red-500' : task.priority === 'Medium' ? 'text-orange-500' : 'text-green-500',
+        progress: Math.floor(Math.random() * 100), // Random progress for now
+        priorityColor: task.priority?.toLowerCase() === 'high' ? 'text-red-500' : task.priority?.toLowerCase() === 'medium' ? 'text-orange-500' : 'text-green-500',
       })));
-
 
     } catch (err) {
       console.error("Error fetching dashboard data:", err.message);
@@ -135,7 +152,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]);
+  }, [user]); // Depend on user object
 
   useEffect(() => {
     if (user) {
@@ -180,7 +197,6 @@ const Dashboard = () => {
         </div>
     );
   }
-
 
   return (
     <div className="space-y-6 p-6 bg-[#131619] text-gray-300 min-h-screen">
@@ -240,20 +256,20 @@ const Dashboard = () => {
             {leaderboard.length === 0 ? (
               <p className="text-gray-500 text-center text-sm">No leaderboard data yet.</p>
             ) : (
-              leaderboard.map((user, index) => (
-                <div key={user.name + index} className="flex items-center odd:bg-[#0D0F10] py-2 px-4">
+              leaderboard.map((userEntry, index) => (
+                <div key={userEntry.name + index} className="flex items-center odd:bg-[#0D0F10] py-2 px-4">
                   <Image
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`}
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${userEntry.name}`}
                     width={28}
                     height={28}
                     className="w-7 h-7 rounded-full mr-3 border border-gray-600"
-                    alt={user.name}
+                    alt={userEntry.name}
                   />
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-white">{user.name}</p>
-                    <p className="text-xs text-gray-400">Completed: {user.completedTasks} tasks</p>
+                    <p className="text-sm font-semibold text-white">{userEntry.name}</p>
+                    <p className="text-xs text-gray-400">Completed: {userEntry.completedTasks} tasks</p>
                   </div>
-                  <span className="text-base font-bold text-teal-400">{user.rank}</span>
+                  <span className="text-base font-bold text-teal-400">{userEntry.rank}</span>
                 </div>
               ))
             )}
