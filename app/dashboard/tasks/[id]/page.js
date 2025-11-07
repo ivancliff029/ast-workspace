@@ -31,7 +31,7 @@ export default function TaskDetails() {
         const { data, error: fetchError } = await supabase
           .from('tasks')
           .select(`
-            task_id,
+            id,
             created_at,
             title,
             priority,
@@ -48,7 +48,7 @@ export default function TaskDetails() {
             is_public,
             employees (first_name, last_name)
           `)
-          .eq('task_id', id)
+          .eq('id', id)
           .single();
 
         if (fetchError) {
@@ -57,7 +57,7 @@ export default function TaskDetails() {
 
         if (data) {
           setSelectedTask({
-            task_id: data.task_id,
+            id: data.id,
             title: data.title,
             description: data.description,
             creator: data.employees ? `${data.employees.first_name} ${data.employees.last_name}` : 'Unknown Creator',
@@ -133,7 +133,7 @@ export default function TaskDetails() {
 
         {selectedTask && (
           <TaskDetailsCard
-            id={selectedTask.task_id} // Use task_id from the database
+            id={selectedTask.id} // Use task_id from the database
             title={selectedTask.title}
             description={selectedTask.description}
             creator={selectedTask.creator}

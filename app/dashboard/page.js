@@ -18,7 +18,7 @@ const Dashboard = () => {
   const [leaderboard, setLeaderboard] = useState([]);
   const [userRewardPoints, setUserRewardPoints] = useState(0); // For rewards summary
   const [tasksInProgress, setTasksInProgress] = useState([]); // For Tasks Progress section
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true); // <<< FIXED LINE 21: Added useState(true)
   const [error, setError] = useState(null);
 
   // Extract name from user email or metadata
@@ -32,27 +32,27 @@ const Dashboard = () => {
       // 1. Fetch Task Counts
       const { count: availableCount, error: availError } = await supabase
         .from('tasks')
-        .select('task_id', { count: 'exact' })
+        .select('id', { count: 'exact' })
         .eq('status', 'available')
-        .eq('is_public', true); // Assuming only public tasks are available to claim
+        .eq('is_public', true);
 
       if (availError) throw availError;
       setAvailableTasksCount(availableCount);
 
       const { count: claimedCount, error: claimedError } = await supabase
         .from('tasks')
-        .select('task_id', { count: 'exact' })
+        .select('id', { count: 'exact' })
         .eq('status', 'claimed')
-        .eq('user_id', user?.id); // Tasks claimed by the current user
+        .eq('user_id', user?.id);
 
       if (claimedError) throw claimedError;
       setClaimedTasksCount(claimedCount);
 
       const { count: completedCount, error: completedError } = await supabase
         .from('tasks')
-        .select('task_id', { count: 'exact' })
+        .select('id', { count: 'exact' })
         .eq('status', 'completed')
-        .eq('user_id', user?.id); // Tasks completed by the current user
+        .eq('user_id', user?.id);
 
       if (completedError) throw completedError;
       setCompletedTasksCount(completedCount);
@@ -62,10 +62,10 @@ const Dashboard = () => {
         .from('tasks')
         .select(`
           user_id,
-          employees (first_name, last_name)
+          employee_creator:employees (first_name, last_name)
         `)
         .eq('status', 'completed')
-        .not('user_id', 'is', null); // Ensure user_id is not null
+        .not('user_id', 'is', null);
 
       if (leaderboardError) throw leaderboardError;
 
@@ -73,8 +73,9 @@ const Dashboard = () => {
       const userCompletedCounts = leaderboardData.reduce((acc, task) => {
         const userId = task.user_id;
         if (userId) {
+          // Access the aliased relationship here
           acc[userId] = acc[userId] || {
-            name: task.employees ? `${task.employees.first_name} ${task.employees.last_name}` : 'Unknown',
+            name: task.employee_creator ? `${task.employee_creator.first_name} ${task.employee_creator.last_name}` : 'Unknown',
             count: 0,
           };
           acc[userId].count++;
@@ -110,20 +111,20 @@ const Dashboard = () => {
       const { data: progressTasksData, error: progressTasksError } = await supabase
         .from('tasks')
         .select(`
-          task_id,
+          id,
           title,
           description,
           priority,
           deadline,
           status
         `)
-        .eq('user_id', user?.id) // Tasks assigned to/claimed by the current user
-        .in('status', ['claimed', 'submitted']); // In progress or awaiting review
+        .eq('user_id', user?.id)
+        .in('status', ['claimed', 'submitted']);
 
       if (progressTasksError) throw progressTasksError;
       setTasksInProgress(progressTasksData.map(task => ({
         ...task,
-        progress: Math.floor(Math.random() * 100), // Placeholder: Replace with real progress logic
+        progress: Math.floor(Math.random() * 100),
         priorityColor: task.priority === 'High' ? 'text-red-500' : task.priority === 'Medium' ? 'text-orange-500' : 'text-green-500',
       })));
 
@@ -134,23 +135,22 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user?.id]); // Re-fetch if the user ID changes
+  }, [user?.id]);
 
   useEffect(() => {
-    if (user) { // Only fetch if user is logged in
+    if (user) {
       fetchDashboardData();
     } else {
-      setLoading(false); // If no user, stop loading but don't show an error necessarily
+      setLoading(false);
       setError("Please log in to view your dashboard.");
     }
-  }, [user, fetchDashboardData]); // Depend on user and fetchDashboardData
+  }, [user, fetchDashboardData]);
 
   const handleClaimTaskClick = () => {
-    router.push('/dashboard/tasks'); // Navigate to the tasks list to claim
+    router.push('/dashboard/tasks');
   };
 
   const handleSubmitTaskClick = () => {
-    // Implement submission logic or navigate to a task submission page
     alert("Submit Task functionality coming soon!");
   };
 
@@ -162,7 +162,7 @@ const Dashboard = () => {
     );
   }
 
-  if (error && user) { // Show error if there's an issue and user is logged in
+  if (error && user) {
     return (
       <div className="bg-[#131619] text-gray-300 min-h-screen flex flex-col items-center justify-center p-8">
         <p className="text-red-500 text-lg mb-4">Error: {error}</p>
@@ -172,12 +172,11 @@ const Dashboard = () => {
       </div>
     );
   }
-  
-  if (!user) { // Show message if not logged in
+
+  if (!user) {
     return (
         <div className="bg-[#131619] text-gray-300 min-h-screen flex flex-col items-center justify-center p-8">
             <p className="text-white text-lg mb-4">You need to be logged in to view the dashboard.</p>
-            {/* Optional: Add a link to login page */}
         </div>
     );
   }
@@ -231,7 +230,7 @@ const Dashboard = () => {
         </div>
 
         {/* Leaderboard */}
-        <div className="bg-[#1A1D21] rounded-lg py-4 flex flex-col border-2 border-[#363A3D] lg:row-span-2"> {/* Added lg:row-span-2 for larger screens */}
+        <div className="bg-[#1A1D21] rounded-lg py-4 flex flex-col border-2 border-[#363A3D] lg:row-span-2">
           <div className="flex items-center">
             <h3 className="text-xl font-semibold ml-4 text-white">Leader Board</h3>
             <Trophy className="ml-2 text-yellow-500" size={24} />
@@ -243,9 +242,8 @@ const Dashboard = () => {
             ) : (
               leaderboard.map((user, index) => (
                 <div key={user.name + index} className="flex items-center odd:bg-[#0D0F10] py-2 px-4">
-                  {/* Placeholder image, replace with user avatars if available */}
                   <Image
-                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`} // Dynamic avatar
+                    src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.name}`}
                     width={28}
                     height={28}
                     className="w-7 h-7 rounded-full mr-3 border border-gray-600"
@@ -277,13 +275,6 @@ const Dashboard = () => {
             </div>
             <p className="text-xl font-bold text-green-500">{userRewardPoints}</p>
           </div>
-          {/* <div className="flex items-center justify-between mb-8">
-            <div className='flex flex-row items-center'>
-              <Clock3 className="text-yellow-500"/>
-              <p className="text-base text-gray-400 ml-4">Pending</p>
-            </div>
-            <p className="text-xl font-bold text-yellow-500">UGX 56,000</p>
-          </div> */}
           <button className="bg-green-600 text-white p-3 rounded text-sm w-full my-2 hover:bg-green-700 transition">
             View Reward History
           </button>
@@ -299,18 +290,13 @@ const Dashboard = () => {
             <MoreVertical size={20} className="text-gray-400 cursor-pointer" />
           </div>
           <div className="flex justify-center items-center h-32">
-            {/* Simple placeholder for productivity chart */}
             <div className="relative w-32 h-32">
                 <svg className="w-full h-full" viewBox="0 0 100 100">
-                    {/* Background circle */}
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#2D3748" strokeWidth="10" />
-                    {/* Quality (e.g., 70%) */}
                     <circle cx="50" cy="50" r="45" fill="none" stroke="#6366F1" strokeWidth="10"
                         strokeDasharray="220 283" strokeDashoffset="-0" />
-                    {/* Speed (e.g., 50%) */}
                     <circle cx="50" cy="50" r="35" fill="none" stroke="#3B82F6" strokeWidth="10"
                         strokeDasharray="110 220" strokeDashoffset="-0" />
-                    {/* Accuracy (e.g., 85%) */}
                     <circle cx="50" cy="50" r="25" fill="none" stroke="#10B981" strokeWidth="10"
                         strokeDasharray="133 157" strokeDashoffset="-0" />
                 </svg>
@@ -344,7 +330,7 @@ const Dashboard = () => {
             <p className="text-gray-500 col-span-full text-center py-5">No tasks in progress.</p>
           ) : (
             tasksInProgress.map((task, index) => (
-              <div key={task.task_id || index} className="bg-[#1A1D21] rounded-lg p-5 flex flex-row justify-between items-center px-6 border border-[#363A3D]">
+              <div key={task.id || index} className="bg-[#1A1D21] rounded-lg p-5 flex flex-row justify-between items-center px-6 border border-[#363A3D]">
                 <div>
                   <h4 className="text-xl font-semibold mb-1 text-white">{task.title}</h4>
                   <p className="text-sm text-gray-400 mb-2 line-clamp-2">{task.description || 'No description'}</p>
@@ -375,7 +361,7 @@ const Dashboard = () => {
                             a 15.9155 15.9155 0 0 1 0 31.831
                             a 15.9155 15.9155 0 0 1 0 -31.831"
                           fill="none"
-                          stroke="#4C51BF" // Or a dynamic color based on progress
+                          stroke="#4C51BF"
                           strokeWidth="3"
                           strokeDasharray={`${task.progress}, 100`}
                         />

@@ -1,11 +1,9 @@
 "use client"
 import React, { useState, useEffect, useCallback } from 'react';
-import { Search, ChevronDown } from 'lucide-react'; // Removed unused Calendar, Clock, ChevronRight
-import Link from 'next/link'; // Keep Link if used for navigation, even if not explicitly in this snippet's current render
-import TaskCard from '@/components/TaskCard'; // Assuming TaskCard is adapted for Supabase task data
+import { Search, ChevronDown } from 'lucide-react';
+import Link from 'next/link';
+import TaskCard from '@/components/TaskCard';
 import { supabase } from '../../../lib/supabaseClient'; // Adjust path if necessary
-
-// No need for interface in JS, but understanding the structure helps
 
 const TaskList = () => {
   const [tasks, setTasks] = useState([]);
@@ -22,7 +20,7 @@ const TaskList = () => {
         .from('tasks')
         .select(`
           *,
-          employees (first_name, last_name)
+          creator_employee:employees (first_name, last_name) // <<<< FIX HERE: Alias the relationship
         `) // Select all task fields and join with employees to get creator name
         .eq('is_public', true); // Only fetch tasks marked as public
 
@@ -31,7 +29,8 @@ const TaskList = () => {
         query = query.or(`title.ilike.%${searchTerm}%,description.ilike.%${searchTerm}%`);
       }
 
-      // Default order, client-side sorting will handle complexity
+      // Default order for database fetch. Client-side sort will apply on top.
+      // It's often good to have a consistent default order for stability.
       query = query.order('created_at', { ascending: false });
 
       const { data, error } = await query;
@@ -42,7 +41,7 @@ const TaskList = () => {
 
       // Transform data to match TaskCard expectations, and include creator name
       const fetchedTasks = data.map((task) => ({
-        task_id: task.task_id,
+        id: task.id, // Use 'id' to match your Supabase table's PK
         created_at: task.created_at,
         user_id: task.user_id,
         title: task.title,
@@ -51,7 +50,8 @@ const TaskList = () => {
         description: task.description,
         deadline: task.deadline,
         reward_points: task.reward_points,
-        creator: task.employees ? `${task.employees.first_name} ${task.employees.last_name}` : 'Unknown Creator',
+        // Access the creator name via the alias 'creator_employee'
+        creator: task.creator_employee ? `${task.creator_employee.first_name} ${task.creator_employee.last_name}` : 'Unknown Creator',
         // ... other fields if needed by TaskCard
       }));
 
@@ -59,10 +59,10 @@ const TaskList = () => {
       let sortedTasks = [...fetchedTasks]; // Create a mutable copy
 
       if (sortBy === 'complexity') {
-        const order = { 'Low': 1, 'Medium': 2, 'High': 3 };
+        const order = { 'easy': 1, 'medium': 2, 'complex': 3 }; // Ensure these match your database values
         sortedTasks.sort((a, b) => (order[a.complexity] || 99) - (order[b.complexity] || 99)); // Handle undefined complexity
       } else if (sortBy === 'reward') {
-        sortedTasks.sort((a, b) => b.reward_points - a.reward_points);
+        sortedTasks.sort((a, b) => (b.reward_points || 0) - (a.reward_points || 0)); // Handle null reward_points
       } else if (sortBy === 'dueDate') {
         sortedTasks.sort((a, b) => {
           const dateA = a.deadline ? new Date(a.deadline).getTime() : Infinity;
@@ -86,8 +86,7 @@ const TaskList = () => {
 
   const handleSort = (criteria) => {
     setSortBy(criteria);
-    // The sorting logic is now within fetchTasks due to the dependency array.
-    // fetchTasks will be re-called with the new sortBy value.
+    // fetchTasks will be re-called due to sortBy in its dependency array.
   };
 
   if (loading) {
@@ -136,8 +135,8 @@ const TaskList = () => {
         ) : (
           tasks.map((task) => (
             <TaskCard
-              key={task.task_id}
-              id={task.task_id}
+              key={task.id} // Use 'id' for the key
+              id={task.id}
               creator={task.creator || 'Unknown'} // Pass the creator name
               createdAt={task.created_at}
               title={task.title}
