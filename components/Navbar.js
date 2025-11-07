@@ -8,7 +8,6 @@ import { useTheme } from 'next-themes';
 import { useAuth } from '@/context/AuthContext'; // Import useAuth context
 import { supabase } from '../lib/supabaseClient'; // Import your Supabase client
 
-// Define a default avatar URL
 const DEFAULT_AVATAR_URL = "https://avatar.iran.liara.run/public/boy";
 
 const Navbar = ({ toggleSidebar }) => {
@@ -75,7 +74,7 @@ const Navbar = ({ toggleSidebar }) => {
           <div className="w-20 h-10 flex items-center justify-center text-white font-bold mr-2">
             <a href="/"><Image src={logo} width={300} height={32}  alt="logo" className='object-cover' /></a>
           </div>
-          <span className="font-semibold hidden sm:inline">WorkSpace Dashboard</span>
+          <span className="font-semibold hidden sm:inline"> <a href="/dashboard">WorkSpace Dashboard</a></span>
         </div>
         <div className="flex items-center space-x-4">
           <Button variant="outline" size="icon" onClick={handleThemeToggle}>
