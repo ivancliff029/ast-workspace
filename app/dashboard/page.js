@@ -1,15 +1,15 @@
 "use client";
 import React, { useState, useEffect, useCallback } from 'react';
-import { ClipboardList, Trophy, MoreVertical, Clock3, Hourglass, ChartSpline, CalendarDays, Award, Zap } from 'lucide-react';
+import { ClipboardList, Trophy, MoreVertical, Clock, Hourglass, TrendingUp, CalendarDays, Award, Zap, X, CheckCircle, XCircle } from 'lucide-react';
 import Image from 'next/image';
-import Money from "../../components/icons/Money"; // Ensure path is correct
-import TaskComplete from "../../components/icons/TaskComplete"; // Ensure path is correct
+import Money from "../../components/icons/Money";
+import TaskComplete from "../../components/icons/TaskComplete";
 import { useAuth } from '@/context/AuthContext';
-import { useRouter } from 'next/navigation'; // Import useRouter
-import { supabase } from '../../lib/supabaseClient'; // Import your existing Supabase client
+import { useRouter } from 'next/navigation';
+import { supabase } from '../../lib/supabaseClient';
 
 const Dashboard = () => {
-  const { user } = useAuth(); // User from AuthContext
+  const { user } = useAuth();
   const router = useRouter();
 
   const [availableTasksCount, setAvailableTasksCount] = useState(0);
@@ -20,9 +20,11 @@ const Dashboard = () => {
   const [tasksInProgress, setTasksInProgress] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [currentUserProfile, setCurrentUserProfile] = useState(null); // To store current user's full profile
+  const [currentUserProfile, setCurrentUserProfile] = useState(null);
+  const [showSubmitModal, setShowSubmitModal] = useState(false);
+  const [userTasks, setUserTasks] = useState([]);
+  const [submitting, setSubmitting] = useState(false);
 
-  // Use the first_name from the employee profile if available, otherwise fallback
   const userName = currentUserProfile?.first_name || user?.user_metadata?.first_name || user?.email?.split('@')[0] || 'User';
 
   const fetchDashboardData = useCallback(async () => {
@@ -46,55 +48,83 @@ const Dashboard = () => {
       if (profileError) throw profileError;
       setCurrentUserProfile(profileData);
 
-      // 1. Fetch Task Counts
-      // Available tasks (public and 'pending' status in your schema)
-      const { count: availableCount, error: availError } = await supabase
+      // Available tasks: public, pending, AND not assigned to anyone
+      // We need to exclude tasks that have assignments
+      const { data: assignedTaskIds, error: assignedError } = await supabase
+        .from('task_assignments')
+        .select('task_id');
+
+      if (assignedError) throw assignedError;
+
+      const assignedIds = assignedTaskIds.map(a => a.task_id);
+
+      let availableTasksQuery = supabase
         .from('tasks')
         .select('id', { count: 'exact' })
-        .eq('status', 'pending') // Use 'pending' as per your schema
+        .eq('status', 'pending')
         .eq('is_public', true);
 
-      if (availError) throw availError;
-      setAvailableTasksCount(availableCount);
+      // Only add the filter if there are actually assigned tasks
+      if (assignedIds.length > 0) {
+        availableTasksQuery = availableTasksQuery.not('id', 'in', `(${assignedIds.join(',')})`);
+      }
 
-      // Claimed tasks (by current user, 'in_progress' status)
-      const { count: claimedCount, error: claimedError } = await supabase
-        .from('tasks')
-        .select('id', { count: 'exact' })
-        .eq('status', 'in_progress') // Use 'in_progress' as per your schema
-        .eq('user_id', user.id);
+      const { count: availableCount, error: availError } = await availableTasksQuery;
+
+      if (availError) throw availError;
+      setAvailableTasksCount(availableCount || 0);
+
+      // Claimed tasks: tasks assigned to current user with 'in_progress' status
+      const { data: claimedTasks, error: claimedError } = await supabase
+        .from('task_assignments')
+        .select('id')
+        .eq('employee_id', user.id)
+        .eq('status', 'in_progress');
 
       if (claimedError) throw claimedError;
-      setClaimedTasksCount(claimedCount);
+      setClaimedTasksCount(claimedTasks?.length || 0);
 
-      // Completed tasks (by current user, 'completed' status)
-      const { count: completedCount, error: completedError } = await supabase
-        .from('tasks')
-        .select('id', { count: 'exact' })
-        .eq('status', 'completed')
-        .eq('user_id', user.id);
+      // Completed tasks: tasks assigned to current user with 'completed' status
+      const { data: completedTasks, error: completedError } = await supabase
+        .from('task_assignments')
+        .select('id')
+        .eq('employee_id', user.id)
+        .eq('status', 'completed');
 
       if (completedError) throw completedError;
-      setCompletedTasksCount(completedCount);
+      setCompletedTasksCount(completedTasks?.length || 0);
 
-      // 2. Fetch Leaderboard (Top 5 users by completed tasks)
-      // Fetch all completed tasks along with employee details for the leaderboard
-      const { data: leaderboardTasksData, error: leaderboardError } = await supabase
-        .from('tasks')
-        .select(`
-          user_id,
-          employees (first_name, last_name) // Correctly select from the 'employees' relation
-        `)
-        .eq('status', 'completed')
-        .not('user_id', 'is', null); // Only tasks assigned to a user
+      // Fetch Leaderboard
+      const { data: leaderboardAssignments, error: leaderboardError } = await supabase
+        .from('task_assignments')
+        .select('employee_id')
+        .eq('status', 'completed');
 
       if (leaderboardError) throw leaderboardError;
 
-      const userCompletedCounts = leaderboardTasksData.reduce((acc, task) => {
-        if (task.user_id && task.employees) {
-          const userId = task.user_id;
+      // Get unique employee IDs
+      const employeeIds = [...new Set(leaderboardAssignments.map(a => a.employee_id))];
+
+      // Fetch employee details separately
+      const { data: employeeDetails, error: employeeError } = await supabase
+        .from('employees')
+        .select('id, first_name, last_name')
+        .in('id', employeeIds);
+
+      if (employeeError) throw employeeError;
+
+      // Create a map of employee details
+      const employeeMap = employeeDetails.reduce((acc, emp) => {
+        acc[emp.id] = `${emp.first_name} ${emp.last_name}`;
+        return acc;
+      }, {});
+
+      // Count completed tasks per employee
+      const userCompletedCounts = leaderboardAssignments.reduce((acc, assignment) => {
+        if (assignment.employee_id && employeeMap[assignment.employee_id]) {
+          const userId = assignment.employee_id;
           acc[userId] = acc[userId] || {
-            name: `${task.employees.first_name} ${task.employees.last_name}`,
+            name: employeeMap[userId],
             count: 0,
           };
           acc[userId].count++;
@@ -109,42 +139,77 @@ const Dashboard = () => {
           name: entry.name,
           completedTasks: entry.count,
           rank: index + 1,
-          time: 'Just now' // Placeholder
+          time: 'Just now'
         }));
       setLeaderboard(sortedLeaderboard);
 
-      // 3. Fetch User Reward Points (Sum of reward_points from completed tasks)
-      const { data: rewardsData, error: rewardsError } = await supabase
-        .from('tasks')
-        .select('reward_points')
-        .eq('status', 'completed')
-        .eq('user_id', user.id);
+      // Fetch User Reward Points
+      const { data: userAssignments, error: rewardsError } = await supabase
+        .from('task_assignments')
+        .select('task_id')
+        .eq('employee_id', user.id)
+        .eq('status', 'completed');
 
       if (rewardsError) throw rewardsError;
 
-      const totalRewardPoints = rewardsData.reduce((sum, task) => sum + (task.reward_points || 0), 0);
-      setUserRewardPoints(totalRewardPoints);
+      if (userAssignments.length > 0) {
+        const taskIds = userAssignments.map(a => a.task_id);
+        const { data: rewardTasks, error: rewardTasksError } = await supabase
+          .from('tasks')
+          .select('reward_points')
+          .in('id', taskIds);
 
-      // 4. Fetch Tasks In Progress (for "Your Tasks Progress" section)
-      const { data: progressTasksData, error: progressTasksError } = await supabase
-        .from('tasks')
-        .select(`
-          id,
-          title,
-          description,
-          priority,
-          deadline,
-          status
-        `)
-        .eq('user_id', user.id)
-        .in('status', ['in_progress', 'submitted']); // Fetch both 'in_progress' and 'submitted'
+        if (rewardTasksError) throw rewardTasksError;
+        const totalRewardPoints = rewardTasks.reduce((sum, task) => sum + (task.reward_points || 0), 0);
+        setUserRewardPoints(totalRewardPoints);
+      } else {
+        setUserRewardPoints(0);
+      }
 
-      if (progressTasksError) throw progressTasksError;
-      setTasksInProgress(progressTasksData.map(task => ({
-        ...task,
-        progress: Math.floor(Math.random() * 100), // Random progress for now
-        priorityColor: task.priority?.toLowerCase() === 'high' ? 'text-red-500' : task.priority?.toLowerCase() === 'medium' ? 'text-orange-500' : 'text-green-500',
-      })));
+      // Fetch Tasks In Progress
+      const { data: progressAssignments, error: progressError } = await supabase
+        .from('task_assignments')
+        .select('id, task_id, status')
+        .eq('employee_id', user.id)
+        .in('status', ['in_progress', 'completed']);
+
+      if (progressError) throw progressError;
+
+      if (progressAssignments.length > 0) {
+        const taskIds = progressAssignments.map(a => a.task_id);
+        
+        const { data: taskDetails, error: taskDetailsError } = await supabase
+          .from('tasks')
+          .select('id, title, description, priority, deadline')
+          .in('id', taskIds);
+
+        if (taskDetailsError) throw taskDetailsError;
+
+        // Create a map of task details
+        const taskMap = taskDetails.reduce((acc, task) => {
+          acc[task.id] = task;
+          return acc;
+        }, {});
+
+        const formattedTasks = progressAssignments.map(assignment => {
+          const task = taskMap[assignment.task_id];
+          return {
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            deadline: task.deadline,
+            status: assignment.status,
+            progress: assignment.status === 'completed' ? 100 : Math.floor(Math.random() * 100),
+            priorityColor: task.priority?.toLowerCase() === 'high' ? 'text-red-500' : 
+                          task.priority?.toLowerCase() === 'medium' ? 'text-orange-500' : 'text-green-500',
+          };
+        });
+
+        setTasksInProgress(formattedTasks);
+      } else {
+        setTasksInProgress([]);
+      }
 
     } catch (err) {
       console.error("Error fetching dashboard data:", err.message);
@@ -152,7 +217,7 @@ const Dashboard = () => {
     } finally {
       setLoading(false);
     }
-  }, [user]); // Depend on user object
+  }, [user]);
 
   useEffect(() => {
     if (user) {
@@ -167,8 +232,89 @@ const Dashboard = () => {
     router.push('/dashboard/tasks');
   };
 
-  const handleSubmitTaskClick = () => {
-    alert("Submit Task functionality coming soon!");
+  const handleSubmitTaskClick = async () => {
+    setShowSubmitModal(true);
+    // Fetch user's tasks for the modal
+    try {
+      const { data: assignments, error: assignmentsError } = await supabase
+        .from('task_assignments')
+        .select('id, task_id, status')
+        .eq('employee_id', user.id)
+        .in('status', ['in_progress', 'completed']);
+
+      if (assignmentsError) throw assignmentsError;
+
+      if (assignments.length > 0) {
+        const taskIds = assignments.map(a => a.task_id);
+        
+        const { data: taskDetails, error: taskDetailsError } = await supabase
+          .from('tasks')
+          .select('id, title, description, priority, deadline, reward_points')
+          .in('id', taskIds);
+
+        if (taskDetailsError) throw taskDetailsError;
+
+        // Create a map of task details
+        const taskMap = taskDetails.reduce((acc, task) => {
+          acc[task.id] = task;
+          return acc;
+        }, {});
+
+        const formattedUserTasks = assignments.map(assignment => {
+          const task = taskMap[assignment.task_id];
+          return {
+            assignmentId: assignment.id,
+            taskId: task.id,
+            title: task.title,
+            description: task.description,
+            priority: task.priority,
+            deadline: task.deadline,
+            rewardPoints: task.reward_points,
+            status: assignment.status,
+          };
+        });
+
+        setUserTasks(formattedUserTasks);
+      } else {
+        setUserTasks([]);
+      }
+    } catch (err) {
+      console.error("Error fetching user tasks:", err.message);
+      alert("Failed to load your tasks.");
+    }
+  };
+
+  const handleSubmitToAdmin = async (taskId, assignmentId) => {
+    setSubmitting(true);
+    try {
+      // Update task_assignments status to 'completed'
+      const { error: updateError } = await supabase
+        .from('task_assignments')
+        .update({ status: 'completed' })
+        .eq('id', assignmentId)
+        .eq('employee_id', user.id);
+
+      if (updateError) throw updateError;
+
+      alert("Task submitted successfully! Waiting for admin approval.");
+      
+      // Refresh the tasks list in modal
+      setUserTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.assignmentId === assignmentId 
+            ? { ...task, status: 'completed' } 
+            : task
+        )
+      );
+
+      // Refresh dashboard data
+      fetchDashboardData();
+    } catch (err) {
+      console.error("Error submitting task:", err.message);
+      alert(`Failed to submit task: ${err.message}`);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (loading) {
@@ -192,14 +338,94 @@ const Dashboard = () => {
 
   if (!user) {
     return (
-        <div className="bg-[#131619] text-gray-300 min-h-screen flex flex-col items-center justify-center p-8">
-            <p className="text-white text-lg mb-4">You need to be logged in to view the dashboard.</p>
-        </div>
+      <div className="bg-[#131619] text-gray-300 min-h-screen flex flex-col items-center justify-center p-8">
+        <p className="text-white text-lg mb-4">You need to be logged in to view the dashboard.</p>
+      </div>
     );
   }
 
   return (
     <div className="space-y-6 p-6 bg-[#131619] text-gray-300 min-h-screen">
+      {/* Submit Task Modal */}
+      {showSubmitModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-75 flex items-center justify-center z-50 p-4">
+          <div className="bg-[#1A1D21] rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto border border-[#363A3D]">
+            <div className="sticky top-0 bg-[#1A1D21] p-6 border-b border-[#363A3D] flex justify-between items-center">
+              <h2 className="text-2xl font-bold text-white">Your Tasks</h2>
+              <button onClick={() => setShowSubmitModal(false)} className="text-gray-400 hover:text-white transition">
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              {userTasks.length === 0 ? (
+                <p className="text-gray-500 text-center py-8">No tasks found.</p>
+              ) : (
+                userTasks.map((task) => (
+                  <div key={task.assignmentId} className="bg-[#0D0F10] rounded-lg p-5 border border-[#363A3D]">
+                    <div className="flex justify-between items-start mb-3">
+                      <div className="flex-1">
+                        <h3 className="text-xl font-semibold text-white mb-2">{task.title}</h3>
+                        <p className="text-sm text-gray-400 mb-3">{task.description || 'No description'}</p>
+                      </div>
+                      <div className={`px-3 py-1 rounded-full text-xs font-semibold ${
+                        task.status === 'completed' 
+                          ? 'bg-green-900 text-green-300' 
+                          : 'bg-yellow-900 text-yellow-300'
+                      }`}>
+                        {task.status === 'completed' ? 'Completed' : 'In Progress'}
+                      </div>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-4 mb-4">
+                      <div>
+                        <span className="text-xs text-gray-500">Priority</span>
+                        <p className={`text-sm font-semibold ${
+                          task.priority?.toLowerCase() === 'high' ? 'text-red-500' : 
+                          task.priority?.toLowerCase() === 'medium' ? 'text-orange-500' : 'text-green-500'
+                        }`}>{task.priority}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500">Deadline</span>
+                        <p className="text-sm text-white">{task.deadline || 'N/A'}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-gray-500">Reward Points</span>
+                        <p className="text-sm text-green-400 font-semibold">{task.rewardPoints || 0}</p>
+                      </div>
+                    </div>
+
+                    {task.status === 'in_progress' && (
+                      <button
+                        onClick={() => handleSubmitToAdmin(task.taskId, task.assignmentId)}
+                        disabled={submitting}
+                        className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
+                      >
+                        {submitting ? (
+                          'Submitting...'
+                        ) : (
+                          <>
+                            <CheckCircle size={18} className="mr-2" />
+                            Submit to Admin
+                          </>
+                        )}
+                      </button>
+                    )}
+
+                    {task.status === 'completed' && (
+                      <div className="w-full bg-gray-700 text-gray-300 py-2 rounded-lg text-center flex items-center justify-center">
+                        <CheckCircle size={18} className="mr-2 text-green-400" />
+                        Awaiting Admin Approval
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Dashboard Header */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center space-y-4 sm:space-y-0">
         <div>
@@ -216,7 +442,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Task Statistics, Rewards, Productivity, and Leaderboard */}
+      {/* Task Statistics */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Available Tasks */}
         <div className="bg-gradient-to-r from-gray-700 to-gray-800 rounded-lg p-4 flex flex-col justify-between items-center text-white border border-gray-600">
@@ -300,22 +526,22 @@ const Dashboard = () => {
         <div className="bg-[#0D0F10] rounded-lg p-4 sm:col-span-2 border border-[#363A3D]">
           <div className="flex justify-between items-center mb-3">
             <div className="flex items-center space-x-2">
-              <ChartSpline size={20} className="text-blue-400"/>
+              <TrendingUp size={20} className="text-blue-400"/>
               <h3 className="text-xl font-semibold text-white">Productivity</h3>
             </div>
             <MoreVertical size={20} className="text-gray-400 cursor-pointer" />
           </div>
           <div className="flex justify-center items-center h-32">
             <div className="relative w-32 h-32">
-                <svg className="w-full h-full" viewBox="0 0 100 100">
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="#2D3748" strokeWidth="10" />
-                    <circle cx="50" cy="50" r="45" fill="none" stroke="#6366F1" strokeWidth="10"
-                        strokeDasharray="220 283" strokeDashoffset="-0" />
-                    <circle cx="50" cy="50" r="35" fill="none" stroke="#3B82F6" strokeWidth="10"
-                        strokeDasharray="110 220" strokeDashoffset="-0" />
-                    <circle cx="50" cy="50" r="25" fill="none" stroke="#10B981" strokeWidth="10"
-                        strokeDasharray="133 157" strokeDashoffset="-0" />
-                </svg>
+              <svg className="w-full h-full" viewBox="0 0 100 100">
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#2D3748" strokeWidth="10" />
+                <circle cx="50" cy="50" r="45" fill="none" stroke="#6366F1" strokeWidth="10"
+                  strokeDasharray="220 283" strokeDashoffset="-0" />
+                <circle cx="50" cy="50" r="35" fill="none" stroke="#3B82F6" strokeWidth="10"
+                  strokeDasharray="110 220" strokeDashoffset="-0" />
+                <circle cx="50" cy="50" r="25" fill="none" stroke="#10B981" strokeWidth="10"
+                  strokeDasharray="133 157" strokeDashoffset="-0" />
+              </svg>
             </div>
           </div>
           <div className="flex justify-between mt-2 text-sm text-gray-400">
