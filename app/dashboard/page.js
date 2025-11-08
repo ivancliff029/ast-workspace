@@ -49,7 +49,6 @@ const Dashboard = () => {
       setCurrentUserProfile(profileData);
 
       // Available tasks: public, pending, AND not assigned to anyone
-      // We need to exclude tasks that have assignments
       const { data: assignedTaskIds, error: assignedError } = await supabase
         .from('task_assignments')
         .select('task_id');
@@ -64,7 +63,6 @@ const Dashboard = () => {
         .eq('status', 'pending')
         .eq('is_public', true);
 
-      // Only add the filter if there are actually assigned tasks
       if (assignedIds.length > 0) {
         availableTasksQuery = availableTasksQuery.not('id', 'in', `(${assignedIds.join(',')})`);
       }
@@ -102,10 +100,8 @@ const Dashboard = () => {
 
       if (leaderboardError) throw leaderboardError;
 
-      // Get unique employee IDs
       const employeeIds = [...new Set(leaderboardAssignments.map(a => a.employee_id))];
 
-      // Fetch employee details separately
       const { data: employeeDetails, error: employeeError } = await supabase
         .from('employees')
         .select('id, first_name, last_name')
@@ -113,13 +109,11 @@ const Dashboard = () => {
 
       if (employeeError) throw employeeError;
 
-      // Create a map of employee details
       const employeeMap = employeeDetails.reduce((acc, emp) => {
         acc[emp.id] = `${emp.first_name} ${emp.last_name}`;
         return acc;
       }, {});
 
-      // Count completed tasks per employee
       const userCompletedCounts = leaderboardAssignments.reduce((acc, assignment) => {
         if (assignment.employee_id && employeeMap[assignment.employee_id]) {
           const userId = assignment.employee_id;
@@ -185,7 +179,6 @@ const Dashboard = () => {
 
         if (taskDetailsError) throw taskDetailsError;
 
-        // Create a map of task details
         const taskMap = taskDetails.reduce((acc, task) => {
           acc[task.id] = task;
           return acc;
@@ -232,9 +225,7 @@ const Dashboard = () => {
     router.push('/dashboard/tasks');
   };
 
-  const handleSubmitTaskClick = async () => {
-    setShowSubmitModal(true);
-    // Fetch user's tasks for the modal
+  const fetchUserTasksForModal = async () => {
     try {
       const { data: assignments, error: assignmentsError } = await supabase
         .from('task_assignments')
@@ -242,7 +233,12 @@ const Dashboard = () => {
         .eq('employee_id', user.id)
         .in('status', ['in_progress', 'completed']);
 
-      if (assignmentsError) throw assignmentsError;
+      if (assignmentsError) {
+        console.error("Error fetching assignments:", assignmentsError);
+        throw assignmentsError;
+      }
+
+      console.log("Fetched assignments:", assignments);
 
       if (assignments.length > 0) {
         const taskIds = assignments.map(a => a.task_id);
@@ -252,9 +248,13 @@ const Dashboard = () => {
           .select('id, title, description, priority, deadline, reward_points')
           .in('id', taskIds);
 
-        if (taskDetailsError) throw taskDetailsError;
+        if (taskDetailsError) {
+          console.error("Error fetching task details:", taskDetailsError);
+          throw taskDetailsError;
+        }
 
-        // Create a map of task details
+        console.log("Fetched task details:", taskDetails);
+
         const taskMap = taskDetails.reduce((acc, task) => {
           acc[task.id] = task;
           return acc;
@@ -274,43 +274,73 @@ const Dashboard = () => {
           };
         });
 
+        console.log("Formatted user tasks:", formattedUserTasks);
         setUserTasks(formattedUserTasks);
       } else {
         setUserTasks([]);
       }
     } catch (err) {
       console.error("Error fetching user tasks:", err.message);
-      alert("Failed to load your tasks.");
+      alert("Failed to load your tasks: " + err.message);
     }
   };
 
-  const handleSubmitToAdmin = async (taskId, assignmentId) => {
-    setSubmitting(true);
-    try {
-      // Update task_assignments status to 'completed'
-      const { error: updateError } = await supabase
-        .from('task_assignments')
-        .update({ status: 'completed' })
-        .eq('id', assignmentId)
-        .eq('employee_id', user.id);
+  const handleSubmitTaskClick = async () => {
+    setShowSubmitModal(true);
+    await fetchUserTasksForModal();
+  };
 
-      if (updateError) throw updateError;
+  const handleSubmitToAdmin = async (taskId, assignmentId) => {
+    if (!user || !user.id) {
+      alert("User not authenticated");
+      return;
+    }
+
+    setSubmitting(true);
+    
+    try {
+      console.log("Submitting task:", { taskId, assignmentId, userId: user.id });
+
+      // Update task_assignments status to 'completed'
+      const { data: updateData, error: updateError } = await supabase
+        .from('task_assignments')
+        .update({ 
+          status: 'completed',
+        })
+        .eq('id', assignmentId)
+        .eq('employee_id', user.id)
+        .select(); // Add select() to return the updated row
+
+      if (updateError) {
+        console.error("Update error:", updateError);
+        throw updateError;
+      }
+
+      console.log("Update successful:", updateData);
+
+      // Verify the update by fetching the record
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('task_assignments')
+        .select('*')
+        .eq('id', assignmentId)
+        .single();
+
+      if (verifyError) {
+        console.error("Verification error:", verifyError);
+      } else {
+        console.log("Verified status:", verifyData);
+      }
 
       alert("Task submitted successfully! Waiting for admin approval.");
       
       // Refresh the tasks list in modal
-      setUserTasks(prevTasks => 
-        prevTasks.map(task => 
-          task.assignmentId === assignmentId 
-            ? { ...task, status: 'completed' } 
-            : task
-        )
-      );
+      await fetchUserTasksForModal();
 
       // Refresh dashboard data
-      fetchDashboardData();
+      await fetchDashboardData();
+      
     } catch (err) {
-      console.error("Error submitting task:", err.message);
+      console.error("Error submitting task:", err);
       alert(`Failed to submit task: ${err.message}`);
     } finally {
       setSubmitting(false);
