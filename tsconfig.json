@@ -21,6 +21,6 @@
       "@/*": ["./*"]
     }
   },
-  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/page.js", "components/Sidebar.js", "app/dashboard/tasks/page.js", "components/TaskDetailsCard.js", "app/dashboard/tasks/[id]/page.js", "app/dashboard/page.js", "components/Navbar.js"],
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts", "app/page.js", "components/Sidebar.js", "app/dashboard/tasks/page.js", "components/TaskDetailsCard.js", "app/dashboard/tasks/[id]/page.js", "app/dashboard/page.js", "components/Navbar.js", ".next/types/app/integration/page.js"],
   "exclude": ["node_modules"]
 }

@@ -42,11 +42,11 @@ const Sidebar = ({ isSidebarOpen, toggleSidebar }) => {
           <ClipboardList className="mr-3" size={30} />
           <span>Tasks</span>
         </Link>
-        <Link href="/integration" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/integration' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+        <Link href="/dashboard/integration" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/integration' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
           <Zap className="mr-3" size={30} />
           <span>Integration</span>
         </Link>
-        <Link href="/earnings" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
+        <Link href="/dashboard/earnings" className={`flex items-center py-2 px-4 rounded-lg ${pathname === '/earnings' ? 'bg-gray-700 text-white' : 'text-gray-400 hover:bg-gray-700 hover:text-white'}`}>
           <Money width={30} height={30} className="mr-3"/>
           <span>Earnings</span>
         </Link>
